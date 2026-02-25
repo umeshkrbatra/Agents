@@ -1,0 +1,35 @@
+services:
+  valkey:
+    image: valkey/valkey:8.0
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build: .
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://valkey:6379/0
+    depends_on:
+      valkey:
+        condition: service_healthy
+    command: python -m rag_queue.main
+
+  worker:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - REDIS_URL=redis://valkey:6379/0
+    depends_on:
+      valkey:
+        condition: service_healthy
+    # This starts the Dramatiq worker listening to the 'rq_client' file
+    command: dramatiq rag_queue.client.rq_client
